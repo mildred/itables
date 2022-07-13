@@ -29,7 +29,7 @@ proc selectCell*(s: SheetUI, coords: Coords, cellView: CustomView) =
 proc makeLayout*(sheet: SheetUi, v: View) =
   v.makeLayout:
     - View as breadcrumb:
-      background_color: new_color(1, 0, 0)
+      background_color: new_color(1, 0, 0, 0.5)
       top == super.top
       left == super.left
       height == 32
@@ -49,7 +49,7 @@ proc makeLayout*(sheet: SheetUi, v: View) =
         right == super.right - margin
         width == super.width - prev.width - 3 * margin
     - View as top_bar:
-      background_color: new_color(0, 1, 0)
+      background_color: new_color(0, 1, 0, 0.5)
       top == prev.bottom
       left == super.left
       right == super.right
@@ -69,16 +69,18 @@ proc makeLayout*(sheet: SheetUi, v: View) =
         bottom == super.bottom - margin
         width == super.width - prev.width - 3 * margin
 
-    - ScrollView:
+    - ScrolledSheetView:
+      background_color: new_color(0, 0, 0, 0.5)
       top == prev.bottom
       left == super
       right == super
       bottom == super
-      background_color: new_color(0.5, 0.5, 0)
-
-      - SheetView:
-        sheet: sheet.sheet
-        selected do(v: SheetView, cell: CustomView, coords: Coords):
-          sheet.selectCell(coords, cell)
+      sheet: sheet.sheet
+      selected do(v: SheetView, cell: CustomView, coords: Coords):
+        sheet.selectCell(coords, cell)
+      onNewCol do():
+        echo "on new col"
+      onNewRow do():
+        echo "on new row"
 
   sheet.viewCoords = viewCoords

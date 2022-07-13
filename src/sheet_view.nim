@@ -1,6 +1,6 @@
 import strformat
 
-import nimx / [ view, context, scroll_view, event, layout, text_field ]
+import nimx / [ view, context, scroll_view, event, layout, text_field, button ]
 
 import nimx/custom_view
 import spreadsheet_db
@@ -13,7 +13,9 @@ type
   SheetView* = ref object of View
     sheet*:       Sheet
     selected*:    proc(v: SheetView, cell: CustomView, coords: Coords)
-    visibleRect:  Rect
+    defineCols*:  proc(v: SheetView, left: Coord, widths: seq[int])
+    defineRows*:  proc(v: SheetView, top: Coord, widths: seq[int])
+    visibleRect*: Rect
     lastSelectedCell: CustomView
 
 proc ncols*(s: Sheet): int = s.template.ncols
@@ -25,13 +27,19 @@ method init*(v: SheetView, r: Rect) =
 
 proc scrolled(view: SheetView) =
   echo &"update layout visible = {view.visibleRect}"
+  #echo &"SheetView.frame = {view.frame}"
   view.removeAllSubviews()
   view.addConstraint(view.layout.vars.height == float(view.sheet.nrows * 32))
   view.addConstraint(view.layout.vars.width == float(view.sheet.ncols * 128))
+  var colHead: seq[int]
+  var rowHead: seq[int]
+  for row in 1 .. view.sheet.nrows:
+    rowHead.add(32)
   for col in 1 .. view.sheet.ncols:
+    colHead.add(128)
     for row in 1 .. view.sheet.nrows:
       let coords = Coords(col: col, row: row)
-      echo &"Generate cell ${col}.{row}"
+      #echo &"Generate cell ${col}.{row}"
       let cellView = CustomView.newView()
       cellView.makeLayout:
         data: coords
@@ -63,6 +71,8 @@ proc scrolled(view: SheetView) =
   # TODO: lookup children and recycle cells that are not visible any more,
   # mark missing cells
   # TODO: create missing cells recycling cell objects that went invisible
+  if view.defineRows != nil: view.defineRows(view, view.visibleRect.origin.y, rowHead)
+  if view.defineCols != nil: view.defineCols(view, view.visibleRect.origin.x, colHead)
 
 method updateLayout*(v: SheetView) =
   let vr = visibleRect(v)
@@ -71,20 +81,101 @@ method updateLayout*(v: SheetView) =
     v.scrolled()
   procCall v.View.updateLayout()
 
+type ClipView* = ref object of View
+
+method clipType*(v: ClipView): ClipType = ctDefaultClip
+
 type ScrolledSheetView* = ref object of View
   sheet_view*: SheetView
+  onNewRow*: proc()
+  onNewCol*: proc()
 
-method init*(v: ScrolledSheetView, rect: Rect) =
-  proc_call v.View.init(rect)
-  v.makeLayout:
-    - ScrollView:
-      frame == super
-      background_color: new_color(0.5, 0.5, 0)
+method init*(view: ScrolledSheetView, rect: Rect) =
+  proc_call view.View.init(rect)
+  view.makeLayout:
+    - ClipView as rowHeader:
+      left == super
+      width == 64
+      top == next.bottom
+      bottom == super.bottom
+      background_color: new_color(1, 0, 0)
+    - ClipView as colHeader:
+      top == super
+      left == prev.right
+      right == super
+      height == 32
+      background_color: new_color(0.5, 0, 0)
+    - ScrollView as scroll_view:
+      top == prev.bottom
+      left == prev.left
+      right == super
+      bottom == super
 
       - SheetView as sheet_view:
-        top == 0
+        top == super.top
+        defineCols do(v: SheetView, left: Coord, cols: seq[int]):
+          #echo &"SheetView.frame = {sheet_view.frame}"
+          #echo &"ScrollView.frame = {scroll_view.frame}"
+          #echo &"ScrolledSheetView.frame = {view.frame}"
+          #echo &"defineCols {left}"
+          colHeader.removeAllSubviews()
+          var lastHeader: View
+          for i, width in cols.pairs():
+            let header = Label.newView()
+            header.text = &"${i+1}"
+            if lastHeader == nil:
+              header.addConstraint(header.layout.vars.left == colHeader.layout.vars.left - float(left))
+            else:
+              header.addConstraint(header.layout.vars.left == lastHeader.layout.vars.right)
+            header.addConstraint(header.layout.vars.top == colHeader.layout.vars.top)
+            header.addConstraint(header.layout.vars.bottom == colHeader.layout.vars.bottom)
+            header.addConstraint(header.layout.vars.width == float(width))
+            colHeader.addSubview(header)
+            lastHeader = header
+          let newButton = Button.newView()
+          newButton.title = "+"
+          if lastHeader == nil:
+            newButton.addConstraint(newButton.layout.vars.left == colHeader.layout.vars.left - float(left))
+          else:
+            newButton.addConstraint(newButton.layout.vars.left == lastHeader.layout.vars.right)
+          newButton.addConstraint(newButton.layout.vars.top == colHeader.layout.vars.top)
+          newButton.addConstraint(newButton.layout.vars.bottom == colHeader.layout.vars.bottom)
+          newButton.addConstraint(newButton.layout.vars.width == 32)
+          newButton.onAction do():
+            if view.onNewCol != nil: view.onNewCol()
+            #echo "new col"
+          colHeader.addSubview(newButton)
+        defineRows do(v: SheetView, top: Coord, rows: seq[int]):
+          rowHeader.removeAllSubviews()
+          #echo &"defineRows {top}"
+          var lastHeader: View
+          for i, height in rows.pairs():
+            let header = Label.newView()
+            header.text = &".{i+1}"
+            if lastHeader == nil:
+              header.addConstraint(header.layout.vars.top == rowHeader.layout.vars.top - float(top))
+            else:
+              header.addConstraint(header.layout.vars.top == lastHeader.layout.vars.bottom)
+            header.addConstraint(header.layout.vars.left == rowHeader.layout.vars.left)
+            header.addConstraint(header.layout.vars.right == rowHeader.layout.vars.right)
+            header.addConstraint(header.layout.vars.height == float(height))
+            rowHeader.addSubview(header)
+            lastHeader = header
+          let newButton = Button.newView()
+          newButton.title = "+"
+          if lastHeader == nil:
+            newButton.addConstraint(newButton.layout.vars.top == rowHeader.layout.vars.top - float(top))
+          else:
+            newButton.addConstraint(newButton.layout.vars.top == lastHeader.layout.vars.bottom)
+          newButton.addConstraint(newButton.layout.vars.left == rowHeader.layout.vars.left)
+          newButton.addConstraint(newButton.layout.vars.right == rowHeader.layout.vars.right)
+          newButton.addConstraint(newButton.layout.vars.height == 32)
+          newButton.onAction do():
+            if view.onNewRow != nil: view.onNewRow()
+            #echo "new row"
+          rowHeader.addSubview(newButton)
 
-  v.sheet_view = sheet_view
+  view.sheet_view = sheet_view
 
 proc `sheet=`*(v: ScrolledSheetView, sheet: Sheet) =
   v.sheet_view.sheet = sheet
