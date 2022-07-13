@@ -15,9 +15,4 @@ requires "nim >= 1.6.4"
 requires "docopt"
 requires "easysqlite3"
 
-requires "nimx#head"
-
-requires "https://github.com/elcritch/fidgetty#head"
-requires "https://github.com/elcritch/fidget.git#head"
-requires "patty" # hidden dependency from fidget
-requires "macroutils" # idem
+requires "nimx"
