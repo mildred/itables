@@ -1,0 +1,9 @@
+/tmp/
+itables*.wasm
+itables*.data
+itables*.html
+itables*.js
+spreadsheet.its
+/src/itables
+/src/itables_nimx
+
