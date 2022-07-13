@@ -2,7 +2,7 @@ import easy_sqlite3
 import spreadsheet_db
 import spreadsheet_migrations
 
-type Spreadsheet = ref object
+type Spreadsheet* = ref object
   filename*: string
   db*: Database
 
