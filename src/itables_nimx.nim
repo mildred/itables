@@ -15,7 +15,6 @@ proc startApp(filename: string) =
   let sheet = SheetUi(
     file: f,
     sheet: f.db.get_root_sheet("default", (5,5)))
-  sheet.cells.setlen(sheet.nrows() * sheet.ncols())
 
   echo &"start {sheet.breadcrumb_name()}"
 

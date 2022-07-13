@@ -20,6 +20,13 @@ type
     `template`*: Template
     parent*: Sheet
 
+proc index*(ncols: int, coords: tuple[col, row: int]): int =
+  result = (coords.row-1) * ncols + (coords.col-1)
+
+proc coords*(ncols: int, idx: int): tuple[col, row: int] =
+  result.col = idx %% ncols
+  result.row = idx /% ncols
+
 proc get_user_version*(): tuple[value: int] {.importdb: "PRAGMA user_version".}
 proc set_user_version*(db: var Database, v: int) =
   discard db.exec(&"PRAGMA user_version = {$v}")
