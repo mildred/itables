@@ -4,6 +4,9 @@ import nimx / [ custom_view, text_field, layout, scroll_view ]
 
 import sheet_view
 
+import formula
+import values
+import formula_parser
 import spreadsheet_file
 import spreadsheet_db
 
@@ -18,13 +21,28 @@ type
     sheet*: Sheet
     selected*: Coords
     viewCoords*: Label
+    viewFormula*: TextField
+    viewSheet*: ScrolledSheetView
 
 proc breadcrumb_name*(s: SheetUi): string = s.sheet.template.name
 
 proc selectCell*(s: SheetUI, coords: Coords, cellView: CustomView) =
   s.selected = coords
+  let formula = s.file.db.get_formula(s.sheet.template, coords.col, coords.row)
+  s.viewFormula.text = formula
   s.viewCoords.text = &"${coords.col}.{coords.row}"
   s.viewCoords.setNeedsDisplay()
+
+proc saveFormula(s: SheetUI) =
+  let f: Formula = parse(s.viewFormula.text)
+  let coords = s.selected
+  for cell in s.file.set_formula(s.sheet.template, coords.col, coords.row, f):
+    # Update cell
+    let value = s.file.compute_cell(s.sheet, f, cell.col, cell.row)
+    s.viewSheet.set_value(cell.col, cell.row, $value)
+
+proc getCellValue(s: SheetUI, coords: Coords): string =
+  result = $s.file.get_or_compute_cell(s.sheet, coords.col, coords.row)
 
 proc makeLayout*(sheet: SheetUi, v: View) =
   v.makeLayout:
@@ -60,16 +78,18 @@ proc makeLayout*(sheet: SheetUi, v: View) =
         left == super.left + margin
         bottom == super.bottom - margin
         width == 128
-      - TextField:
-        text: "=foo()"
+      - TextField as viewFormula:
+        text: ""
         autoresizingMask: { afFlexibleWidth, afFlexibleMaxY }
         top == super.top + margin
         left == prev.right + margin
         right == super.right - margin
         bottom == super.bottom - margin
         width == super.width - prev.width - 3 * margin
+        onAction do:
+          sheet.saveFormula()
 
-    - ScrolledSheetView:
+    - ScrolledSheetView as viewSheet:
       background_color: new_color(0, 0, 0, 0.5)
       top == prev.bottom
       left == super
@@ -78,9 +98,13 @@ proc makeLayout*(sheet: SheetUi, v: View) =
       sheet: sheet.sheet
       selected do(v: SheetView, cell: CustomView, coords: Coords):
         sheet.selectCell(coords, cell)
+      cellValue do(v: SheetView, coords: Coords) -> string:
+        sheet.getCellValue(coords)
       onNewCol do():
         echo "on new col"
       onNewRow do():
         echo "on new row"
 
   sheet.viewCoords = viewCoords
+  sheet.viewFormula = viewFormula
+  sheet.viewSheet = viewSheet

@@ -13,6 +13,7 @@ type
   SheetView* = ref object of View
     sheet*:       Sheet
     selected*:    proc(v: SheetView, cell: CustomView, coords: Coords)
+    cellValue*:   proc(v: SheetView, coords: Coords): string
     defineCols*:  proc(v: SheetView, left: Coord, widths: seq[int])
     defineRows*:  proc(v: SheetView, top: Coord, widths: seq[int])
     visibleRect*: Rect
@@ -59,7 +60,7 @@ proc scrolled(view: SheetView) =
             return false
         - Label:
           frame == super
-          text: &"cell ${col}.{row}"
+          text: view.cellValue(view, Coords(col: col, row: row)) # &"cell ${col}.{row}"
       cellView.addConstraint(cellView.layout.vars.left == view.layout.vars.left + float(128 * (col-1)))
       cellView.addConstraint(cellView.layout.vars.top == view.layout.vars.top + float(32 * (row-1)))
       cellView.addConstraint(cellView.layout.vars.height == 32)
@@ -80,6 +81,25 @@ method updateLayout*(v: SheetView) =
     v.visibleRect = vr
     v.scrolled()
   procCall v.View.updateLayout()
+
+proc get_cell(v: SheetView, col, row: int): CustomView =
+  for child in v.subviews:
+    if not (child of CustomView): continue
+    let cell = CustomView(child)
+    if not (cell.data of Coords): continue
+    let coords = Coords(cell.data)
+    if coords.row == row and coords.col == col:
+      return cell
+  return nil
+
+
+proc set_value*(v: SheetView, col, row: int, value: string) =
+  let cell = v.get_cell(col, row)
+  if cell != nil:
+    for child in cell.subviews:
+      if not (child of Label): continue
+      let label = Label(child)
+      label.text = value
 
 type ClipView* = ref object of View
 
@@ -182,3 +202,9 @@ proc `sheet=`*(v: ScrolledSheetView, sheet: Sheet) =
 
 proc `selected=`*(v: ScrolledSheetView, selected: typeof(v.sheet_view.selected)) =
   v.sheet_view.selected = selected
+
+proc `cellValue=`*(v: ScrolledSheetView, cellValue: typeof(v.sheet_view.cellValue)) =
+  v.sheet_view.cellValue = cellValue
+
+proc set_value*(v: ScrolledSheetView, col, row: int, value: string) =
+  v.sheet_view.set_value(col, row, value)

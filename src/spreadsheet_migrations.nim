@@ -30,21 +30,24 @@ proc migrate*(db: var Database): bool =
           );
         """)
         db.exec("""
-          CREATE TABLE IF NOT EXISTS sheets (
-            id            INTEGER PRIMARY KEY NOT NULL,
-            parent_id     INTEGER,
-            template_id   INTEGER NOT NULL,
-            FOREIGN KEY (parent_id) REFERENCES sheets (id)
-            FOREIGN KEY (template_id) REFERENCES templates (id)
-          );
-        """)
-        db.exec("""
           CREATE TABLE IF NOT EXISTS cells (
             template_id   INTEGER NOT NULL,
             row           INTEGER NOT NULL,
             col           INTEGER NOT NULL,
             formula       TEXT NOT NULL,
             PRIMARY KEY (template_id, row, col),
+            FOREIGN KEY (template_id) REFERENCES templates (id)
+          );
+        """)
+        db.exec("""
+          CREATE TABLE IF NOT EXISTS sheets (
+            id            INTEGER PRIMARY KEY NOT NULL,
+            parent_id     INTEGER,
+            parent_col    INTEGER,
+            parent_row    INTEGER,
+            template_id   INTEGER NOT NULL,
+            FOREIGN KEY (parent_id) REFERENCES sheets (id)
+            FOREIGN KEY (parent_id, parent_col, parent_row) REFERENCES cells (template_id, col, row)
             FOREIGN KEY (template_id) REFERENCES templates (id)
           );
         """)
@@ -57,6 +60,17 @@ proc migrate*(db: var Database): bool =
             value         JSON NOT NULL,
             PRIMARY KEY (sheet_id, row, col),
             FOREIGN KEY (sheet_id) REFERENCES sheets (id)
+          );
+        """)
+        db.exec("""
+          CREATE TABLE IF NOT EXISTS cell_xref (
+            template_id     INTEGER NOT NULL,
+            col             INTEGER NOT NULL,
+            row             INTEGER NOT NULL,
+            ref_template_id INTEGER NOT NULL,
+            ref_col         INTEGER NOT NULL,
+            ref_row         INTEGER NOT NULL,
+            PRIMARY KEY (template_id, col, row, ref_template_id, ref_col, ref_row)
           );
         """)
         user_version = 1
